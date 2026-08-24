@@ -1,4 +1,6 @@
 .env
+*.log
+*_log.txt
 __pycache__/
 *.py[cod]
 *$py.class

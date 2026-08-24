@@ -6,20 +6,21 @@ from flask_cors import CORS
 
 load_dotenv()
 
-from flask_cors import CORS  # Optional if you want to allow cross-origin requests
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")  # Use env var for security
 CORS(app)
 
-# Load API key from environment variable
-OPENAI_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = "gpt-4.1-mini"
+# OpenRouter Configuration
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 def ask_doctor(prompt, conv_id):
     """Send user input to OpenRouter API and return response"""
-    
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key or api_key == "your_openrouter_api_key_here":
+        return "Configuration Error: OPENROUTER_API_KEY is not set. Please configure your API key in the .env file or environment variables."
+
+    model = os.getenv("MODEL", "openai/gpt-4o-mini")
+
     # Initialize session conversations
     if "conversations" not in session:
         session["conversations"] = []
@@ -37,19 +38,27 @@ def ask_doctor(prompt, conv_id):
     })
 
     headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
     payload = {
-        "model": MODEL,
+        "model": model,
         "messages": messages,
         "max_tokens": 1000
     }
 
     try:
         response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()  # Raise error for bad status codes
+        
+        if response.status_code == 401:
+            return "API Error (401 Unauthorized): Invalid or missing OpenRouter API key. Please verify your OPENROUTER_API_KEY."
+        elif response.status_code == 402:
+            return "API Error (402 Payment Required): Insufficient OpenRouter credits/quota. Please add credits to your OpenRouter account."
+        elif response.status_code == 429:
+            return "API Error (429 Rate Limit/Quota Exceeded): Too many requests or quota limit reached. Please check your OpenRouter quota."
+        
+        response.raise_for_status()  # Raise error for other bad status codes
         data = response.json()
 
         if "choices" in data and len(data["choices"]) > 0:

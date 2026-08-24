@@ -10,15 +10,22 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")  # Use env var for security
 CORS(app)
 
-# OpenRouter Configuration
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
+# OpenRouter / OpenAI-Compatible API Configuration
+DEFAULT_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 def ask_doctor(prompt, conv_id):
-    """Send user input to OpenRouter API and return response"""
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    """Send user input to AI completion API and return formatted response"""
+    api_key = (
+        os.getenv("OPENROUTER_API_KEY") or 
+        os.getenv("OPENAI_API_KEY") or 
+        os.getenv("GROQ_API_KEY") or 
+        os.getenv("GEMINI_API_KEY") or 
+        os.getenv("AI_API_KEY")
+    )
     if not api_key or api_key == "your_openrouter_api_key_here":
-        return "Configuration Error: OPENROUTER_API_KEY is not set. Please configure your API key in the .env file or environment variables."
+        return "Configuration Error: API key is not set. Please set OPENROUTER_API_KEY (or GROQ_API_KEY / OPENAI_API_KEY) in your .env file or environment variables."
 
+    api_url = os.getenv("API_URL", DEFAULT_API_URL)
     model = os.getenv("MODEL", "openai/gpt-4o-mini")
 
     # Initialize session conversations
@@ -49,14 +56,14 @@ def ask_doctor(prompt, conv_id):
     }
 
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 401:
-            return "API Error (401 Unauthorized): Invalid or missing OpenRouter API key. Please verify your OPENROUTER_API_KEY."
+            return "API Error (401 Unauthorized): Invalid or missing API key. Please check your API key."
         elif response.status_code == 402:
-            return "API Error (402 Payment Required): Insufficient OpenRouter credits/quota. Please add credits to your OpenRouter account."
+            return "API Error (402 Payment Required): Insufficient API credits/quota. Please add credits to your account."
         elif response.status_code == 429:
-            return "API Error (429 Rate Limit/Quota Exceeded): Too many requests or quota limit reached. Please check your OpenRouter quota."
+            return "API Error (429 Rate Limit/Quota Exceeded): Too many requests or quota limit reached."
         
         response.raise_for_status()  # Raise error for other bad status codes
         data = response.json()
